@@ -89,8 +89,8 @@ select.input{padding:0 10px}
 /* Trabajador */
 .w-shell{max-width:560px;margin:0 auto;min-height:100vh}
 .w-main{padding:20px 16px calc(170px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px}
-.w-nav{position:fixed;bottom:0;left:0;right:0;max-width:560px;margin:0 auto;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding:6px 4px calc(8px + env(safe-area-inset-bottom));z-index:20}
-.w-nav button{background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:48px;justify-content:center;font-size:11px;font-weight:600;color:var(--muted)}
+.w-nav{position:fixed;bottom:0;left:0;right:0;max-width:560px;margin:0 auto;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding:6px 2px calc(8px + env(safe-area-inset-bottom));z-index:20}
+.w-nav button{background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:48px;justify-content:center;font-size:11px;white-space:nowrap;padding:0;font-weight:600;color:var(--muted)}
 .w-nav button[aria-current=page]{color:var(--accent);font-weight:700}
 .w-bar{position:fixed;left:0;right:0;bottom:calc(62px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto;background:#fff;border-top:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:15}
 .avatar{width:40px;height:40px;border-radius:20px;background:var(--accent-l);color:var(--accent-d);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
@@ -149,6 +149,11 @@ details.faq p{padding:0 16px 14px;font-size:14px;line-height:1.5;color:var(--ink
 .textarea{min-height:110px;border:1px solid var(--input);border-radius:12px;padding:12px 14px;background:#fff;width:100%;resize:vertical;line-height:1.45;color:var(--ink)}
 .q-box{background:var(--soft);border-radius:12px;padding:10px 12px;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
 .q-ans{background:var(--ok-bg);color:#14432A}
+.link-card{display:flex;align-items:center;gap:12px;padding:12px 0;text-decoration:none;color:var(--ink);min-height:56px}
+.link-card:hover{color:var(--ink)}
+.link-card:hover .link-t{color:var(--accent)}
+.link-ic{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.link-t{font-weight:700;font-size:15px}
 .grilla-img{display:block;border-radius:10px;overflow:hidden;background:var(--soft)}
 .grilla-img img{display:block;width:100%;height:auto}
 
@@ -234,6 +239,12 @@ const mailValido = m => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m);
 const ICON = {
   cal: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   list: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+  link: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
+  ext: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+  chat: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.2A8.5 8.5 0 1 1 21 12z"/></svg>',
+  camera: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/></svg>',
+  play: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4"/><path d="M10 9l5 3-5 3z"/></svg>',
+  globe: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
   img: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>',
   help: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.7-2.5 2-2.5 4M12 17h.01"/></svg>',
   lock: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
@@ -418,7 +429,7 @@ function redraw() {
 
 /* ================= Trabajador: estructura ================= */
 function renderWorkerShell() {
-  const items = [['calendario', 'Calendario', ICON.cal], ['pedidos', 'Mis pedidos', ICON.list], ['grillas', 'Grillas', ICON.img], ['ayuda', 'Ayuda', ICON.help]];
+  const items = [['calendario', 'Calendario', ICON.cal], ['pedidos', 'Mis pedidos', ICON.list], ['grillas', 'Grillas', ICON.img], ['links', 'Links', ICON.link], ['ayuda', 'Ayuda', ICON.help]];
   $app().innerHTML = `
     <div class="w-shell">
       <main class="w-main" id="main"></main>
@@ -608,6 +619,47 @@ VIEWS.grillas = {
   draw() { return '<h1>Grillas</h1>' + drawGrillas(S.w.grillas, S.w.grillaCat, false); }
 };
 
+/* ---------- Links ---------- */
+const LINK_CATS = [['equipo', 'Equipo'], ['centro', 'Centro cultural'], ['redes', 'Redes sociales']];
+async function cargarLinks() {
+  const { data, error } = await sb.from('links').select('*').order('categoria').order('orden').order('id');
+  if (error) throw error;
+  return data || [];
+}
+function linkIcono(url, cat) {
+  let host = '';
+  try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (_) {}
+  const est = (bg, fg, svg) => `<span class="link-ic" style="background:${bg};color:${fg}">${svg}</span>`;
+  if (/whatsapp\.com|wa\.me/.test(host)) return est('#DDF3E4', '#1E6B3A', ICON.chat);
+  if (/instagram\.com/.test(host)) return est('#FBE3EF', '#9A2A5E', ICON.camera);
+  if (/youtube\.com|youtu\.be/.test(host)) return est('#FBE3E1', '#A3261B', ICON.play);
+  if (/facebook\.com|fb\.com|x\.com|twitter\.com|tiktok\.com|threads\.net|linkedin\.com|spotify\.com/.test(host)) return est('#E3EDF9', '#174A88', ICON.globe);
+  if (cat === 'redes') return est('#E3EDF9', '#174A88', ICON.globe);
+  return est('#EEF1F5', '#3A4552', ICON.globe);
+}
+const hostDe = url => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (_) { return url; } };
+const urlSegura = u => /^https?:\/\/\S+$/i.test(String(u || '').trim());
+
+VIEWS.links = {
+  async load() { S.w.links = await cargarLinks(); },
+  draw() {
+    const L = S.w.links || [];
+    if (!L.length) return '<h1>Links</h1><div class="empty">Todavía no hay links cargados.</div>';
+    return '<h1>Links</h1>' + LINK_CATS.map(([k, t]) => {
+      const items = L.filter(l => l.categoria === k && urlSegura(l.url));
+      if (!items.length) return '';
+      return `<h2 style="padding-left:2px">${t}</h2>
+        <div class="card divide" style="padding:2px 16px">
+          ${items.map(l => `<a class="link-card" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">
+            ${linkIcono(l.url, l.categoria)}
+            <span class="stack-s" style="gap:1px;flex:1;min-width:0"><span class="link-t">${esc(l.titulo)}</span><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.descripcion || hostDe(l.url))}</span></span>
+            <span class="muted" aria-hidden="true">${ICON.ext}</span><span class="sr">(se abre en una pestaña nueva)</span>
+          </a>`).join('')}
+        </div>`;
+    }).join('');
+  }
+};
+
 /* ---------- Ayuda ---------- */
 VIEWS.ayuda = {
   async load() {
@@ -679,7 +731,7 @@ async function contarPendientes() {
   });
 }
 function renderAdminShell() {
-  const items = [['solicitudes', 'Solicitudes'], ['calendarioGeneral', 'Calendario general'], ['meses', 'Meses habilitados'], ['grillasAdmin', 'Grillas'], ['personal', 'Personal'], ['preguntas', 'Preguntas'], ['configuracion', 'Configuración']];
+  const items = [['solicitudes', 'Solicitudes'], ['calendarioGeneral', 'Calendario general'], ['meses', 'Meses habilitados'], ['grillasAdmin', 'Grillas'], ['linksAdmin', 'Links'], ['personal', 'Personal'], ['preguntas', 'Preguntas'], ['configuracion', 'Configuración']];
   $app().innerHTML = `
     <div class="a-shell">
       <aside class="a-side">
@@ -946,6 +998,58 @@ VIEWS.personal = {
   }
 };
 
+/* ---------- Links (admin) ---------- */
+VIEWS.linksAdmin = {
+  async load() { S.a.links = await cargarLinks(); },
+  draw() {
+    const L = S.a.links || [];
+    const opts = sel => LINK_CATS.map(([k, t]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${t}</option>`).join('');
+    const bloques = LINK_CATS.map(([k, t]) => {
+      const items = L.filter(l => l.categoria === k);
+      return `<section class="card stack" style="max-width:860px">
+        <h2>${t}</h2>
+        ${items.length ? items.map((l, i) => S.a.linkEdit === l.id ? `
+          <form class="f-link-editar stack" data-id="${l.id}" style="border-top:1px solid var(--line2);padding-top:12px" novalidate>
+            <div class="row" style="align-items:flex-end">
+              <div class="field" style="flex:1 1 200px"><label for="le-t${l.id}">Nombre</label><input class="input input-sm" id="le-t${l.id}" name="titulo" value="${esc(l.titulo)}" maxlength="80" required></div>
+              <div class="field" style="flex:2 1 280px"><label for="le-u${l.id}">Dirección (link)</label><input class="input input-sm" id="le-u${l.id}" name="url" type="url" value="${esc(l.url)}" required></div>
+            </div>
+            <div class="row" style="align-items:flex-end">
+              <div class="field" style="flex:2 1 280px"><label for="le-d${l.id}">Descripción (opcional)</label><input class="input input-sm" id="le-d${l.id}" name="descripcion" value="${esc(l.descripcion || '')}" maxlength="140"></div>
+              <div class="field" style="flex:1 1 170px"><label for="le-c${l.id}">Sección</label><select class="input input-sm" id="le-c${l.id}" name="categoria">${opts(l.categoria)}</select></div>
+            </div>
+            <div class="row" style="gap:8px"><button class="btn btn-soft btn-sm" type="button" data-act="linkEditCancel">Cancelar</button><button class="btn btn-primary btn-sm" type="submit">Guardar</button></div>
+          </form>` : `
+          <div class="between" style="border-top:1px solid var(--line2);padding-top:10px;flex-wrap:nowrap">
+            <div class="row" style="gap:12px;flex-wrap:nowrap;min-width:0">${linkIcono(l.url, l.categoria)}
+              <div class="stack-s" style="gap:1px;min-width:0"><a class="b" href="${esc(urlSegura(l.url) ? l.url : '#')}" target="_blank" rel="noopener noreferrer">${esc(l.titulo)}</a><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.descripcion || l.url)}</span></div></div>
+            <div class="row" style="gap:2px;flex-wrap:nowrap">
+              <button class="btn btn-soft btn-sm" data-act="linkMover" data-id="${l.id}" data-v="-1" ${i === 0 ? 'disabled' : ''} aria-label="Subir ${esc(l.titulo)}">↑</button>
+              <button class="btn btn-soft btn-sm" data-act="linkMover" data-id="${l.id}" data-v="1" ${i === items.length - 1 ? 'disabled' : ''} aria-label="Bajar ${esc(l.titulo)}">↓</button>
+              <button class="btn-link" data-act="linkEdit" data-id="${l.id}">Editar</button>
+              <button class="btn-link" style="color:var(--bad)" data-act="linkBorrar" data-id="${l.id}">Borrar</button>
+            </div>
+          </div>`).join('') : '<p class="small muted">Todavía no hay links en esta sección.</p>'}
+      </section>`;
+    }).join('');
+    return `
+      <div class="stack-s"><h1>Links</h1><p class="muted small" style="max-width:680px">Los links que ven todos los compañeros en la sección Links. Solo los ve quien tiene una cuenta aprobada, así que el grupo de WhatsApp no queda expuesto.</p></div>
+      <form id="f-link" class="card stack" style="max-width:860px;box-shadow:inset 0 0 0 2px #BFD3EE" novalidate>
+        <h2>Agregar link</h2>
+        <div class="row" style="align-items:flex-end">
+          <div class="field" style="flex:1 1 200px"><label for="ln-t">Nombre</label><input class="input input-sm" id="ln-t" name="titulo" placeholder="Ej.: Agenda del centro cultural" maxlength="80" required></div>
+          <div class="field" style="flex:2 1 280px"><label for="ln-u">Dirección (link)</label><input class="input input-sm" id="ln-u" name="url" type="url" placeholder="https://…" required></div>
+        </div>
+        <div class="row" style="align-items:flex-end">
+          <div class="field" style="flex:2 1 280px"><label for="ln-d">Descripción (opcional)</label><input class="input input-sm" id="ln-d" name="descripcion" placeholder="Ej.: Actividades de la semana" maxlength="140"></div>
+          <div class="field" style="flex:1 1 170px"><label for="ln-c">Sección</label><select class="input input-sm" id="ln-c" name="categoria">${opts('centro')}</select></div>
+          <button class="btn btn-primary" type="submit" style="height:40px">Agregar</button>
+        </div>
+      </form>
+      ${bloques}`;
+  }
+};
+
 /* ---------- Preguntas (admin) ---------- */
 VIEWS.preguntas = {
   async load() {
@@ -1125,6 +1229,27 @@ const ACT = {
   },
   pf(d) { S.a.pf = d.v; redraw(); },
   pregTab(d) { S.a.pregTab = d.v; go('preguntas'); },
+  linkEdit(d) { S.a.linkEdit = Number(d.id); redraw(); },
+  linkEditCancel() { S.a.linkEdit = null; redraw(); },
+  async linkBorrar(d, el) {
+    if (!confirm('¿Borrar este link? Deja de verse para todos.')) return;
+    setBusy(el, true);
+    const { error } = await sb.from('links').delete().eq('id', Number(d.id));
+    if (error) { setBusy(el, false); return toast(errMsg(error), true); }
+    toast('Link borrado.');
+    go('linksAdmin');
+  },
+  async linkMover(d) {
+    const id = Number(d.id), l = S.a.links.find(x => x.id === id);
+    const grupo = S.a.links.filter(x => x.categoria === l.categoria);
+    const i = grupo.indexOf(l), j = i + Number(d.v);
+    if (j < 0 || j >= grupo.length) return;
+    [grupo[i], grupo[j]] = [grupo[j], grupo[i]];
+    const res = await Promise.all(grupo.map((x, k) => sb.from('links').update({ orden: k }).eq('id', x.id)));
+    const err = res.find(r => r.error);
+    if (err) return toast(errMsg(err.error), true);
+    go('linksAdmin');
+  },
   edit(d) { S.a.edit = d.id; redraw(); },
   editCancel() { S.a.edit = null; redraw(); },
   async ferQuitar(d) {
@@ -1138,6 +1263,31 @@ const ACT = {
 
 /* ================= Formularios ================= */
 const FORMS = {
+  async 'f-link'(f) {
+    const titulo = f.titulo.value.trim(), url = f.url.value.trim(), descripcion = f.descripcion.value.trim() || null, categoria = f.categoria.value;
+    if (!titulo) return toast('Poné un nombre para el link.', true);
+    if (!urlSegura(url)) return toast('El link tiene que empezar con https:// (copialo entero desde el navegador).', true);
+    const orden = (S.a.links || []).filter(x => x.categoria === categoria).length;
+    const btn = f.querySelector('button[type=submit]');
+    setBusy(btn, true, 'Agregando…');
+    const { error } = await sb.from('links').insert({ titulo, url, descripcion, categoria, orden });
+    if (error) { setBusy(btn, false); return toast(errMsg(error), true); }
+    toast('Link agregado.');
+    go('linksAdmin');
+  },
+  async 'f-link-editar'(f) {
+    const titulo = f.titulo.value.trim(), url = f.url.value.trim(), descripcion = f.descripcion.value.trim() || null, categoria = f.categoria.value;
+    if (!titulo) return toast('Poné un nombre para el link.', true);
+    if (!urlSegura(url)) return toast('El link tiene que empezar con https:// (copialo entero desde el navegador).', true);
+    const actual = S.a.links.find(x => x.id === Number(f.dataset.id));
+    const cambios = { titulo, url, descripcion, categoria };
+    if (actual && actual.categoria !== categoria) cambios.orden = S.a.links.filter(x => x.categoria === categoria).length;
+    const { error } = await sb.from('links').update(cambios).eq('id', Number(f.dataset.id));
+    if (error) return toast(errMsg(error), true);
+    S.a.linkEdit = null;
+    toast('Link guardado.');
+    go('linksAdmin');
+  },
   async 'f-pregunta'(f) {
     const texto = f.texto.value.trim();
     if (texto.length < 3) return toast('Escribí tu pregunta.', true);
@@ -1248,7 +1398,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('submit', e => {
   const f = e.target;
-  const fn = FORMS[f.id] || (f.classList.contains('f-tipo') ? FORMS['f-tipo'] : f.classList.contains('f-aprobar') ? FORMS['f-aprobar'] : f.classList.contains('f-responder') ? FORMS['f-responder'] : null);
+  const fn = FORMS[f.id] || (f.classList.contains('f-tipo') ? FORMS['f-tipo'] : f.classList.contains('f-aprobar') ? FORMS['f-aprobar'] : f.classList.contains('f-responder') ? FORMS['f-responder'] : f.classList.contains('f-link-editar') ? FORMS['f-link-editar'] : null);
   if (fn) { e.preventDefault(); fn(f); }
 });
 document.addEventListener('input', e => {
