@@ -207,11 +207,13 @@ td{padding:10px 12px;border-top:1px solid var(--line2);vertical-align:middle}
 <div id="toast-root" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 'use strict';
 /* ================= Conexión ================= */
 const SUPABASE_URL = 'https://ijkvrdpyvjeunnmcahan.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_FmEtYYHx9R-1b7v8MmLiIw_PM2s8mN1';
+const GOOGLE_CLIENT_ID = '19386986792-qd3skqii28mgq9tnhbb8mct5dnqlt9kd.apps.googleusercontent.com';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /* ================= Utilidades ================= */
@@ -348,6 +350,7 @@ async function cargarBase() {
   S.excepciones = e.data || [];
 }
 async function salir() {
+  try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch (_) {}
   await sb.auth.signOut();
   S.me = null;
   renderLogin();
@@ -370,11 +373,52 @@ function renderLogin() {
       <main class="login-body stack">
         <div class="stack-s"><h1>Entrá con tu cuenta de Google</h1>
           <p class="muted">La primera vez, un coordinador tiene que aprobar tu acceso. Después entrás directo.</p></div>
-        <button class="btn btn-primary btn-block" data-act="loginGoogle">Entrar con Google</button>
+        <div id="gbtn" style="min-height:44px;display:flex;justify-content:center"><span class="small muted">Cargando el botón de Google…</span></div>
         ${local ? '<p class="small" style="color:var(--bad)">El ingreso con Google solo funciona con la página publicada en internet, no abriendo el archivo desde la computadora.</p>' : ''}
         <p class="small muted">Si es tu primera vez, vas a quedar esperando la aprobación. Te conviene avisarle a tu coordinador.</p>
+        <p class="small muted center">¿No aparece el botón? <button class="btn-link" style="min-height:auto;padding:0;font-size:13px" data-act="loginGoogle">Entrar de otra forma</button></p>
       </main>
     </div>`;
+  iniciarBotonGoogle();
+}
+
+/* Botón oficial de Google: el ingreso ocurre en esta página, por eso Google muestra su dirección */
+async function sha256Hex(texto) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+let gNonce = null;
+async function iniciarBotonGoogle(intento = 0) {
+  const cont = document.getElementById('gbtn');
+  if (!cont) return;
+  if (!(window.google && google.accounts && google.accounts.id)) {
+    if (intento < 40) return setTimeout(() => iniciarBotonGoogle(intento + 1), 250);
+    cont.innerHTML = '<button class="btn btn-primary btn-block" data-act="loginGoogle">Entrar con Google</button>';
+    return;
+  }
+  gNonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: alVolverDeGoogle,
+    nonce: await sha256Hex(gNonce),
+    ux_mode: 'popup',
+    auto_select: false,
+    use_fedcm_for_prompt: true,
+    itp_support: true
+  });
+  cont.innerHTML = '';
+  google.accounts.id.renderButton(cont, {
+    type: 'standard', theme: 'filled_blue', size: 'large', shape: 'pill',
+    text: 'signin_with', logo_alignment: 'left', locale: 'es',
+    width: Math.min(400, Math.max(220, cont.clientWidth || 320))
+  });
+}
+async function alVolverDeGoogle(resp) {
+  const cont = document.getElementById('gbtn');
+  if (cont) cont.innerHTML = '<span class="small muted">Entrando…</span>';
+  const { error } = await sb.auth.signInWithIdToken({ provider: 'google', token: resp.credential, nonce: gNonce });
+  if (error) { toast('No se pudo entrar: ' + errMsg(error), true); return renderLogin(); }
+  boot();
 }
 function renderBloqueado() {
   $app().innerHTML = `
