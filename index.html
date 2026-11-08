@@ -144,6 +144,8 @@ details.faq[open] summary svg{transform:rotate(180deg)}
 details.faq p{padding:0 16px 14px;font-size:14px;line-height:1.5;color:var(--ink2)}
 .contact{display:flex;align-items:center;gap:12px;padding:10px 0}
 .icon-btn{width:44px;height:44px;border-radius:22px;background:var(--soft);color:var(--accent);display:flex;align-items:center;justify-content:center;border:0;flex-shrink:0}
+.aviso{display:flex;gap:10px;align-items:flex-start;background:#FFF7E0;box-shadow:inset 0 0 0 1px #E8C66B;border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.45;color:#3D2A00}
+.aviso svg{flex-shrink:0;margin-top:1px;color:var(--warn)}
 .grilla-img{display:block;border-radius:10px;overflow:hidden;background:var(--soft)}
 .grilla-img img{display:block;width:100%;height:auto}
 
@@ -253,6 +255,9 @@ function setBusy(btn, busy, txt) {
   if (busy) { btn.dataset.txt = btn.textContent; btn.disabled = true; btn.textContent = txt || 'Un momento…'; }
   else { btn.disabled = false; if (btn.dataset.txt) btn.textContent = btn.dataset.txt; }
 }
+
+const AVISO_COORD = 'Siempre hay que escribirles por privado a los coordinadores para solicitar las vacaciones. Este sistema es para tener una comunicación transparente entre el equipo.';
+const avisoCoord = () => `<div class="aviso" role="note"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg><span><b>Importante:</b> ${AVISO_COORD}</span></div>`;
 
 /* ================= Estado ================= */
 const S = {
@@ -498,6 +503,7 @@ VIEWS.calendario = {
         <div class="saldo"><span class="xs muted b">Vacaciones ${y}</span><span class="big">${Math.max(vacRest, 0)} <span class="small muted" style="font-weight:500">de ${D.saldo.semanas_total}</span></span><span class="xs muted">semanas disponibles</span></div>
         <div class="saldo"><span class="xs muted b">ACA ${y}</span><span class="big">${Math.max(acaRest, 0)} <span class="small muted" style="font-weight:500">de ${D.saldo.aca_total}</span></span><span class="xs muted">ausentes con aviso</span></div>
       </div>
+      ${avisoCoord()}
       <div class="seg" role="group" aria-label="Tipo de pedido">
         <button data-act="tipo" data-v="vacaciones" aria-pressed="${vac}">Vacaciones</button>
         <button data-act="tipo" data-v="aca" aria-pressed="${!vac}">ACA</button>
@@ -559,6 +565,7 @@ VIEWS.pedidos = {
       <div class="card stack-s" style="background:var(--accent-xl)">
         <h2 style="color:var(--accent-d)">¿Cómo funciona?</h2>
         <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.4;color:var(--ink2)">
+          <li><b>${esc(AVISO_COORD)}</b></li>
           <li>Cada semana va de sábado a viernes. Si cae un feriado en el medio, queda incluido.</li>
           <li>Por día pueden faltar como máximo ${S.config.cupo_diario} personas. Un pedido pendiente ya ocupa lugar.</li>
           <li>Si lo rechazan o lo cancelás, los días vuelven a tu saldo y el lugar se libera.</li>
@@ -608,7 +615,8 @@ VIEWS.ayuda = {
   draw() {
     const cupo = S.config.cupo_diario, n = S.config.meses_habilitados;
     const faqs = [
-      ['¿Cómo pido vacaciones?', 'En Calendario elegí "Vacaciones" y tocá cualquier día: se marca la semana entera, de sábado a viernes. Revisá que sea la correcta y tocá "Pedir".'],
+      ['¿Cómo pido vacaciones?', 'En Calendario elegí "Vacaciones" y tocá cualquier día: se marca la semana entera, de sábado a viernes. Revisá que sea la correcta y tocá "Pedir". Además, escribiles por privado a los coordinadores.'],
+      ['¿Alcanza con pedirlo acá?', 'No. ' + AVISO_COORD],
       ['¿Qué es un ACA?', 'Un ausente con aviso. Se pide de a un día, eligiendo "ACA" en el Calendario.'],
       ['¿Por qué no puedo elegir una semana o un día?', 'Puede ser porque algún día ya tiene el cupo lleno (como máximo pueden faltar ' + cupo + ' personas por día), porque ese mes todavía no está habilitado, porque ya pasó, o porque ya usaste tu saldo del año.'],
       ['¿Cuándo se habilitan los meses?', 'Tenés abiertos el mes actual y los ' + (n - 1) + ' siguientes. El día 1 de cada mes se suma uno nuevo.'],
@@ -624,6 +632,7 @@ VIEWS.ayuda = {
       </div>`).join('') : '<p class="small muted" style="padding:12px 0">Todavía no hay coordinadores cargados.</p>';
     return `
       <h1>Ayuda</h1>
+      ${avisoCoord()}
       <div class="card" style="padding:0;overflow:hidden">
         ${faqs.map(([q, a]) => `<details class="faq"><summary>${esc(q)}${ICON.chev}</summary><p>${esc(a)}</p></details>`).join('')}
       </div>
@@ -998,7 +1007,7 @@ const ACT = {
     const { error } = await sb.rpc('pedir_ausencia', { p_tipo: S.w.tipo, p_fecha: S.w.sel });
     if (error) { setBusy(el, false); toast(errMsg(error), true); return go('calendario'); }
     S.w.sel = null;
-    toast('Pedido enviado. Queda pendiente de revisión.');
+    toast('Pedido enviado. Acordate de escribirles por privado a los coordinadores.');
     go('calendario');
   },
   async cancelar(d, el) {
