@@ -146,6 +146,9 @@ details.faq p{padding:0 16px 14px;font-size:14px;line-height:1.5;color:var(--ink
 .icon-btn{width:44px;height:44px;border-radius:22px;background:var(--soft);color:var(--accent);display:flex;align-items:center;justify-content:center;border:0;flex-shrink:0}
 .aviso{display:flex;gap:10px;align-items:flex-start;background:#FFF7E0;box-shadow:inset 0 0 0 1px #E8C66B;border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.45;color:#3D2A00}
 .aviso svg{flex-shrink:0;margin-top:1px;color:var(--warn)}
+.textarea{min-height:110px;border:1px solid var(--input);border-radius:12px;padding:12px 14px;background:#fff;width:100%;resize:vertical;line-height:1.45;color:var(--ink)}
+.q-box{background:var(--soft);border-radius:12px;padding:10px 12px;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.q-ans{background:var(--ok-bg);color:#14432A}
 .grilla-img{display:block;border-radius:10px;overflow:hidden;background:var(--soft)}
 .grilla-img img{display:block;width:100%;height:auto}
 
@@ -263,8 +266,8 @@ const avisoCoord = () => `<div class="aviso" role="note"><svg width="18" height=
 const S = {
   me: null, config: null, tipos: [], feriados: {}, feriadosList: [], excepciones: [],
   view: null,
-  w: { cal: null, tipo: 'vacaciones', sel: null, data: null, pedidos: [], grillas: [], grillaCat: 'horarios', admins: [] },
-  a: { tab: 'pend', sol: [], admins: [], pendientes: 0, cal: null, calData: null, dia: null, personas: [], pf: 'todos', q: '', edit: null, grillas: [], grillaCat: 'horarios' }
+  w: { preguntas: [], cal: null, tipo: 'vacaciones', sel: null, data: null, pedidos: [], grillas: [], grillaCat: 'horarios', admins: [] },
+  a: { tab: 'pend', pregTab: 'sin', preguntas: [], sol: [], admins: [], pendientes: 0, cal: null, calData: null, dia: null, personas: [], pf: 'todos', q: '', edit: null, grillas: [], grillaCat: 'horarios' }
 };
 const esAdmin = () => S.me && (S.me.rol === 'admin' || S.me.rol === 'superadmin');
 const ROL_TXT = { trabajador: 'Trabajador', admin: 'Administrador', superadmin: 'Superadmin' };
@@ -608,9 +611,11 @@ VIEWS.grillas = {
 /* ---------- Ayuda ---------- */
 VIEWS.ayuda = {
   async load() {
-    const { data, error } = await sb.rpc('admins_contacto');
-    if (error) throw error;
-    S.w.admins = data || [];
+    const [ad, mq] = await Promise.all([sb.rpc('admins_contacto'), sb.rpc('mis_consultas')]);
+    if (ad.error) throw ad.error;
+    if (mq.error) throw mq.error;
+    S.w.admins = ad.data || [];
+    S.w.preguntas = mq.data || [];
   },
   draw() {
     const cupo = S.config.cupo_diario, n = S.config.meses_habilitados;
@@ -636,6 +641,20 @@ VIEWS.ayuda = {
       <div class="card" style="padding:0;overflow:hidden">
         ${faqs.map(([q, a]) => `<details class="faq"><summary>${esc(q)}${ICON.chev}</summary><p>${esc(a)}</p></details>`).join('')}
       </div>
+      <h2 style="padding-left:2px" id="dejar-pregunta">Dejar una pregunta sobre la aplicación</h2>
+      <form id="f-pregunta" class="card stack" novalidate>
+        <p class="small" style="display:flex;gap:8px;align-items:flex-start;color:var(--ink2)">${ICON.lock}<span>Tu pregunta <b>solo la leen los administradores de la página</b> (los coordinadores y la administración). Se envía con tu nombre para que te puedan responder acá.</span></p>
+        <div class="field"><label for="preg-texto">Tu pregunta</label>
+          <textarea class="textarea" id="preg-texto" name="texto" maxlength="1000" placeholder="Ej.: ¿Cómo hago para cambiar una semana que ya me aprobaron?" required></textarea></div>
+        <div class="between"><span class="xs muted">Hasta 1000 caracteres.</span><button class="btn btn-primary" type="submit">Enviar pregunta</button></div>
+      </form>
+      ${S.w.preguntas.length ? `<h2 style="padding-left:2px">Mis preguntas</h2>
+      ${S.w.preguntas.map(q => `<div class="item">
+        <div class="between"><span class="xs muted">Enviada el ${esc(fechaTs(q.created_at))}</span>
+          <span class="pill ${q.respuesta ? 'p-ok' : 'p-pend'}">${q.respuesta ? ICON.check + 'Respondida' : ICON.clock + 'Sin responder'}</span></div>
+        <div class="q-box">${esc(q.texto)}</div>
+        ${q.respuesta ? `<div class="stack-s"><span class="xs b" style="color:var(--ok)">Respuesta de ${esc(q.respondido_por_nombre || 'Coordinación')} · ${esc(fechaTs(q.respondido_at))}</span><div class="q-box q-ans">${esc(q.respuesta)}</div></div>` : ''}
+      </div>`).join('')}` : ''}
       <h2 style="padding-left:2px">Coordinadores</h2>
       <div class="card divide" style="padding:4px 16px">${admins}</div>
       <h2 style="padding-left:2px">Mi cuenta</h2>
@@ -646,26 +665,28 @@ VIEWS.ayuda = {
 
 /* ================= Admin: estructura ================= */
 async function contarPendientes() {
-  const [s, p] = await Promise.all([
+  const [s, p, c] = await Promise.all([
     sb.from('solicitudes').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente'),
-    sb.from('personal').select('id', { count: 'exact', head: true }).eq('pendiente', true)
+    sb.from('personal').select('id', { count: 'exact', head: true }).eq('pendiente', true),
+    sb.from('consultas').select('id', { count: 'exact', head: true }).is('respuesta', null)
   ]);
   S.a.pendientes = s.count || 0;
   S.a.accesos = p.count || 0;
-  [['badge-pend', S.a.pendientes], ['badge-acc', S.a.accesos]].forEach(([id, n]) => {
+  S.a.sinResp = c.count || 0;
+  [['badge-pend', S.a.pendientes], ['badge-acc', S.a.accesos], ['badge-preg', S.a.sinResp]].forEach(([id, n]) => {
     const b = document.getElementById(id);
     if (b) { b.textContent = n; b.hidden = !n; }
   });
 }
 function renderAdminShell() {
-  const items = [['solicitudes', 'Solicitudes'], ['calendarioGeneral', 'Calendario general'], ['meses', 'Meses habilitados'], ['grillasAdmin', 'Grillas'], ['personal', 'Personal'], ['configuracion', 'Configuración']];
+  const items = [['solicitudes', 'Solicitudes'], ['calendarioGeneral', 'Calendario general'], ['meses', 'Meses habilitados'], ['grillasAdmin', 'Grillas'], ['personal', 'Personal'], ['preguntas', 'Preguntas'], ['configuracion', 'Configuración']];
   $app().innerHTML = `
     <div class="a-shell">
       <aside class="a-side">
         <div class="a-brand"><div class="stack-s" style="gap:2px"><span style="font-size:18px;font-weight:700">Vacaciones</span><span class="xs" style="color:#B6C0CC">Panel de coordinación</span></div>
           <button class="a-out" data-act="salir">Salir</button></div>
         <nav aria-label="Secciones">
-          ${items.map(([v, t]) => `<button data-act="go" data-v="${v}" ${S.view === v ? 'aria-current="page"' : ''}>${t}${v === 'solicitudes' ? `<span class="badge" id="badge-pend" ${S.a.pendientes ? '' : 'hidden'}>${S.a.pendientes}</span>` : ''}${v === 'personal' ? `<span class="badge" id="badge-acc" ${S.a.accesos ? '' : 'hidden'} aria-label="solicitudes de acceso">${S.a.accesos || 0}</span>` : ''}</button>`).join('')}
+          ${items.map(([v, t]) => `<button data-act="go" data-v="${v}" ${S.view === v ? 'aria-current="page"' : ''}>${t}${v === 'solicitudes' ? `<span class="badge" id="badge-pend" ${S.a.pendientes ? '' : 'hidden'}>${S.a.pendientes}</span>` : ''}${v === 'personal' ? `<span class="badge" id="badge-acc" ${S.a.accesos ? '' : 'hidden'} aria-label="solicitudes de acceso">${S.a.accesos || 0}</span>` : ''}${v === 'preguntas' ? `<span class="badge" id="badge-preg" ${S.a.sinResp ? '' : 'hidden'} aria-label="preguntas sin responder">${S.a.sinResp || 0}</span>` : ''}</button>`).join('')}
         </nav>
         <div class="a-user">
           <div class="avatar" aria-hidden="true" style="${S.me.rol === 'superadmin' ? 'background:#F2B53B;color:var(--dark)' : ''}">${esc(iniciales(S.me))}</div>
@@ -925,6 +946,37 @@ VIEWS.personal = {
   }
 };
 
+/* ---------- Preguntas (admin) ---------- */
+VIEWS.preguntas = {
+  async load() {
+    let q = sb.from('consultas').select('id,texto,created_at,respuesta,respondido_at,autor:personal!consultas_personal_id_fkey(nombre,apellido,email),resp:personal!consultas_respondido_por_fkey(nombre,apellido,rol)');
+    q = S.a.pregTab === 'sin' ? q.is('respuesta', null).order('created_at') : q.not('respuesta', 'is', null).order('respondido_at', { ascending: false }).limit(80);
+    const { data, error } = await q;
+    if (error) throw error;
+    S.a.preguntas = data || [];
+  },
+  draw() {
+    const quien = r => !r ? 'Coordinación' : r.rol === 'superadmin' ? 'Administración (Fede Admin)' : nombreDe(r);
+    const cards = S.a.preguntas.map(q => `<article class="item" style="max-width:820px">
+      <div class="between"><span class="b">${esc(nombreDe(q.autor))}</span><span class="xs muted">${esc(fechaTs(q.created_at))}</span></div>
+      <div class="q-box">${esc(q.texto)}</div>
+      ${q.respuesta
+        ? `<div class="stack-s"><span class="xs b" style="color:var(--ok)">Respondió ${esc(quien(q.resp))} · ${esc(fechaTs(q.respondido_at))}</span><div class="q-box q-ans">${esc(q.respuesta)}</div></div>`
+        : `<form class="f-responder stack" data-id="${q.id}" novalidate>
+             <div class="field"><label for="r-${q.id}">Respuesta</label><textarea class="textarea" id="r-${q.id}" name="respuesta" maxlength="2000" style="min-height:80px" required></textarea></div>
+             <div><button class="btn btn-primary" type="submit">Responder</button></div>
+           </form>`}
+    </article>`).join('');
+    return `
+      <div class="stack-s"><h1>Preguntas</h1><p class="muted small" style="max-width:680px">Preguntas sobre la aplicación que dejan los compañeros desde Ayuda. Solo las ven los administradores. La respuesta le aparece a quien preguntó, en su sección de Ayuda.</p></div>
+      <div class="seg" role="group" aria-label="Filtro" style="max-width:360px">
+        <button data-act="pregTab" data-v="sin" aria-pressed="${S.a.pregTab === 'sin'}">Sin responder</button>
+        <button data-act="pregTab" data-v="resp" aria-pressed="${S.a.pregTab === 'resp'}">Respondidas</button>
+      </div>
+      ${cards || `<div class="empty" style="max-width:820px">${S.a.pregTab === 'sin' ? 'No hay preguntas sin responder.' : 'Todavía no hay preguntas respondidas.'}</div>`}`;
+  }
+};
+
 /* ---------- Configuración ---------- */
 VIEWS.configuracion = {
   async load() { await cargarBase(); },
@@ -1072,6 +1124,7 @@ const ACT = {
     go('personal');
   },
   pf(d) { S.a.pf = d.v; redraw(); },
+  pregTab(d) { S.a.pregTab = d.v; go('preguntas'); },
   edit(d) { S.a.edit = d.id; redraw(); },
   editCancel() { S.a.edit = null; redraw(); },
   async ferQuitar(d) {
@@ -1085,6 +1138,26 @@ const ACT = {
 
 /* ================= Formularios ================= */
 const FORMS = {
+  async 'f-pregunta'(f) {
+    const texto = f.texto.value.trim();
+    if (texto.length < 3) return toast('Escribí tu pregunta.', true);
+    const btn = f.querySelector('button[type=submit]');
+    setBusy(btn, true, 'Enviando…');
+    const { error } = await sb.rpc('enviar_consulta', { p_texto: texto });
+    if (error) { setBusy(btn, false); return toast(errMsg(error), true); }
+    toast('Pregunta enviada. Te van a responder acá, en Ayuda.');
+    go('ayuda');
+  },
+  async 'f-responder'(f) {
+    const respuesta = f.respuesta.value.trim();
+    if (!respuesta) return toast('Escribí la respuesta.', true);
+    const btn = f.querySelector('button[type=submit]');
+    setBusy(btn, true, 'Enviando…');
+    const { error } = await sb.rpc('responder_consulta', { p_id: Number(f.dataset.id), p_respuesta: respuesta });
+    if (error) { setBusy(btn, false); return toast(errMsg(error), true); }
+    toast('Respuesta enviada.');
+    go('preguntas');
+  },
   async 'f-aprobar'(f) {
     const btn = f.querySelector('button[type=submit]');
     setBusy(btn, true, 'Aprobando…');
@@ -1175,7 +1248,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('submit', e => {
   const f = e.target;
-  const fn = FORMS[f.id] || (f.classList.contains('f-tipo') ? FORMS['f-tipo'] : f.classList.contains('f-aprobar') ? FORMS['f-aprobar'] : null);
+  const fn = FORMS[f.id] || (f.classList.contains('f-tipo') ? FORMS['f-tipo'] : f.classList.contains('f-aprobar') ? FORMS['f-aprobar'] : f.classList.contains('f-responder') ? FORMS['f-responder'] : null);
   if (fn) { e.preventDefault(); fn(f); }
 });
 document.addEventListener('input', e => {
