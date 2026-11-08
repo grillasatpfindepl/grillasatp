@@ -487,7 +487,7 @@ VIEWS.calendario = {
       : `<button class="tab" disabled aria-label="${cap(MESES[x.m])}, se habilita el ${esc(cuandoAbre(x.y, x.m) || 'más adelante')}">${ICON.lock}${cap(MESES_C[x.m])}</button>`).join('');
 
     let bar;
-    if (sinSaldo) bar = `<p class="small b">${vac ? 'Ya usaste tus semanas de vacaciones de ' + y + '.' : 'Ya usaste tus ACA de ' + y + '.'}</p>`;
+    if (sinSaldo) bar = `<p class="small b">${vac ? 'Ya no te quedan semanas de vacaciones disponibles en ' + y + '. Consultá con un coordinador.' : 'Ya no te quedan ACA disponibles en ' + y + '. Consultá con un coordinador.'}</p>`;
     else if (S.w.sel) {
       const a = S.w.sel, b = vac ? addDays(a, 6) : a;
       bar = `<div class="stack-s" style="gap:2px;min-width:0"><span class="xs muted b">${vac ? 'Vacaciones · 1 semana' : 'ACA · 1 día'}</span><span class="b">${esc(rango(a, b, tipo))}</span></div>
@@ -551,7 +551,7 @@ VIEWS.pedidos = {
     const P = S.w.pedidos;
     const lista = P.length ? P.map(p => {
       const [t, c, i] = ESTADO[p.estado];
-      const nota = p.estado === 'rechazado' ? 'Los días volvieron a tu saldo.' : p.estado === 'cancelado' ? 'Este pedido se canceló. Los días volvieron a tu saldo.' : '';
+      const nota = p.estado === 'rechazado' ? 'Los días volvieron a estar disponibles para todo el equipo.' : p.estado === 'cancelado' ? 'Este pedido se canceló. Los días volvieron a estar disponibles para todo el equipo.' : '';
       return `<div class="item">
         <div class="between" style="align-items:flex-start;flex-wrap:nowrap">
           <div class="stack-s" style="gap:2px;min-width:0"><span class="xs muted b">${p.tipo === 'vacaciones' ? 'VACACIONES' : 'ACA'}</span><span class="b" style="font-size:16px">${esc(rango(p.fecha_inicio, p.fecha_fin, p.tipo))}</span></div>
@@ -568,7 +568,7 @@ VIEWS.pedidos = {
           <li><b>${esc(AVISO_COORD)}</b></li>
           <li>Cada semana va de sábado a viernes. Si cae un feriado en el medio, queda incluido.</li>
           <li>Por día pueden faltar como máximo ${S.config.cupo_diario} personas. Un pedido pendiente ya ocupa lugar.</li>
-          <li>Si lo rechazan o lo cancelás, los días vuelven a tu saldo y el lugar se libera.</li>
+          <li>Si lo rechazan o lo cancelás, los días vuelven a estar disponibles para todos los compañeros del equipo.</li>
         </ul>
       </div>`;
   }
@@ -618,7 +618,7 @@ VIEWS.ayuda = {
       ['¿Cómo pido vacaciones?', 'En Calendario elegí "Vacaciones" y tocá cualquier día: se marca la semana entera, de sábado a viernes. Revisá que sea la correcta y tocá "Pedir". Además, escribiles por privado a los coordinadores.'],
       ['¿Alcanza con pedirlo acá?', 'No. ' + AVISO_COORD],
       ['¿Qué es un ACA?', 'Un ausente con aviso. Se pide de a un día, eligiendo "ACA" en el Calendario.'],
-      ['¿Por qué no puedo elegir una semana o un día?', 'Puede ser porque algún día ya tiene el cupo lleno (como máximo pueden faltar ' + cupo + ' personas por día), porque ese mes todavía no está habilitado, porque ya pasó, o porque ya usaste tu saldo del año.'],
+      ['¿Por qué no puedo elegir una semana o un día?', 'Puede ser porque algún día ya tiene el cupo lleno (como máximo pueden faltar ' + cupo + ' personas por día), porque ese mes todavía no está habilitado o porque ese día ya pasó. Si ya no te quedan días de vacaciones o ACA disponibles, consultá con un coordinador.'],
       ['¿Cuándo se habilitan los meses?', 'Tenés abiertos el mes actual y los ' + (n - 1) + ' siguientes. El día 1 de cada mes se suma uno nuevo.'],
       ['¿Qué significa cada estado?', 'Pendiente de revisión: lo están evaluando, pero ya ocupa tu lugar. Aprobado: está confirmado. Rechazado: no se aprobó y los días vuelven a estar disponibles para todos los compañeros del equipo.'],
       ['¿Puedo cancelar un pedido?', 'Sí, mientras esté pendiente: entrá a "Mis pedidos" y tocá "Cancelar pedido". Si ya fue aprobado, hablalo con un coordinador.'],
@@ -1011,7 +1011,7 @@ const ACT = {
     go('calendario');
   },
   async cancelar(d, el) {
-    if (!confirm('¿Cancelar este pedido? Los días vuelven a tu saldo.')) return;
+    if (!confirm('¿Cancelar este pedido? Los días vuelven a estar disponibles para todo el equipo.')) return;
     setBusy(el, true, 'Cancelando…');
     const { error } = await sb.rpc('cancelar_solicitud', { p_id: d.id });
     if (error) { setBusy(el, false); return toast(errMsg(error), true); }
