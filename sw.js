@@ -1,7 +1,7 @@
 // Grillas ATP — mantiene la app instalada siempre al día.
 // No guarda copias viejas de la página: siempre busca la última versión en internet.
 // Si no hay conexión, muestra un aviso claro en vez de una pantalla de error.
-const VERSION = '2026-11-08';
+const VERSION = '2026-11-12';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
@@ -23,4 +23,34 @@ self.addEventListener('fetch', (e) => {
       new Response(SIN_CONEXION, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
     )
   );
+});
+
+// Avisos al celular
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'Grillas ATP', {
+    body: d.body || '',
+    icon: 'icon-192.png',
+    lang: 'es',
+    tag: d.tag || undefined,
+    data: { url: d.url || './' }
+  }));
+});
+
+// Al tocar el aviso: abre la app (o la trae al frente) en la sección que corresponde
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const destino = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil((async () => {
+    const ventanas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const v of ventanas) {
+      if (v.url.startsWith(self.registration.scope)) {
+        await v.focus();
+        if ('navigate' in v) return v.navigate(destino);
+        return;
+      }
+    }
+    return self.clients.openWindow(destino);
+  })());
 });

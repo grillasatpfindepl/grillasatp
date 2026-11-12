@@ -237,6 +237,7 @@ td{padding:10px 12px;border-top:1px solid var(--line2);vertical-align:middle}
 /* ================= Conexión ================= */
 const SUPABASE_URL = 'https://ijkvrdpyvjeunnmcahan.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_FmEtYYHx9R-1b7v8MmLiIw_PM2s8mN1';
+const VAPID_PUBLIC = 'BNis_2C0-1hNbPQt7JvN-VXmXOUYr07mEKWmjp6g_EHRcGeuo5c6Qnv7-bwnb9ZJ_Afk0bSy8Oyj9XK-SUjK29Y';
 const GOOGLE_CLIENT_ID = '19386986792-qd3skqii28mgq9tnhbb8mct5dnqlt9kd.apps.googleusercontent.com';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -297,6 +298,17 @@ function modal(html) {
 }
 function cerrarModal() { const m = document.getElementById('modal-bg'); if (m) m.remove(); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
+
+function pedirMotivo(que, id) {
+  const rech = que === 'rechazar';
+  modal(`<h2 style="font-size:20px">${rech ? '¿Rechazar este pedido?' : '¿Anular este pedido?'}</h2>
+    <p class="small" style="color:var(--ink2)">Se libera el cupo y los días vuelven a estar disponibles para todo el equipo. ${rech ? 'Con un solo rechazo, el pedido queda rechazado.' : ''}</p>
+    <div class="field"><label for="motivo-txt">Motivo <span class="muted" style="font-weight:500">(opcional, lo va a ver la persona)</span></label>
+      <textarea class="textarea" id="motivo-txt" maxlength="500" style="min-height:90px" placeholder="Ej.: ese fin de semana hay un evento especial"></textarea></div>
+    <button class="btn btn-danger btn-block" data-act="${rech ? 'votarConfirmado' : 'anularConfirmado'}" data-id="${id}" data-v="rechazado">${rech ? 'Sí, rechazar' : 'Sí, anular'}</button>
+    <button class="btn btn-soft btn-block" data-act="cerrarModal">Volver</button>`);
+  setTimeout(() => { const t = document.getElementById('motivo-txt'); if (t) t.focus(); }, 50);
+}
 
 let toastTimer;
 function toast(msg, err) {
@@ -363,6 +375,61 @@ function avisoAppAjena() {
   </div>`;
 }
 
+/* ================= Avisos al celular ================= */
+const pushSoportado = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && location.protocol === 'https:';
+function b64aU8(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+async function miSuscripcion() {
+  if (!pushSoportado()) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  return reg ? reg.pushManager.getSubscription() : null;
+}
+async function estadoAvisos() {
+  if (!pushSoportado()) return ES_IOS && !instalada() ? 'ios' : 'no';
+  if (Notification.permission === 'denied') return 'bloqueado';
+  if (Notification.permission !== 'granted') return 'apagado';
+  return (await miSuscripcion()) ? 'activo' : 'apagado';
+}
+async function guardarSub(sub) {
+  const j = sub.toJSON();
+  const { error } = await sb.rpc('guardar_suscripcion', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth });
+  if (error) throw error;
+}
+async function activarAvisos() {
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') { toast('No se activaron los avisos. Si te arrepentís, se pueden activar desde la configuración del celular.', true); return false; }
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64aU8(VAPID_PUBLIC) });
+  await guardarSub(sub);
+  return true;
+}
+async function relinkearAvisos() {
+  try { if (pushSoportado() && Notification.permission === 'granted') { const s = await miSuscripcion(); if (s) await guardarSub(s); } } catch (_) {}
+}
+async function desvincularAvisos() {
+  try { const s = await miSuscripcion(); if (s) await sb.rpc('borrar_suscripcion', { p_endpoint: s.endpoint }); } catch (_) {}
+}
+const avisosQueRecibe = () => esAdmin()
+  ? 'Pedidos nuevos, preguntas y solicitudes de acceso.'
+  : 'Cuando aprueben o rechacen tus pedidos, cuando te respondan una pregunta, cuando se libere un lugar que esperabas y cuando se habilite un mes nuevo.';
+function cajaAvisos() { return '<div class="avisos-box" aria-live="polite"></div>'; }
+async function pintarAvisos() {
+  const cajas = document.querySelectorAll('.avisos-box');
+  if (!cajas.length) return;
+  const st = await estadoAvisos();
+  let h;
+  if (st === 'activo') h = `<div class="card stack-s"><div class="between" style="flex-wrap:nowrap"><span class="b" style="color:var(--ok)">${ICON.check} Avisos activados en este celular</span><button class="btn-link" data-act="apagarAvisos">Apagar</button></div><span class="small muted">${avisosQueRecibe()}</span></div>`;
+  else if (st === 'apagado') h = `<div class="card stack-s" style="background:var(--accent-xl);box-shadow:inset 0 0 0 1px #BFD3EE"><span class="b" style="color:var(--accent-d)">Recibí avisos en el celular</span><span class="small" style="color:var(--ink2)">${avisosQueRecibe()}</span><button class="btn btn-primary btn-block" data-act="prenderAvisos">Activar avisos</button></div>`;
+  else if (st === 'ios') h = `<div class="card stack-s"><span class="b">Avisos en iPhone</span><span class="small muted">Para recibir avisos en iPhone, primero instalá la app en la pantalla de inicio y abrila desde ahí.</span><button class="btn btn-soft btn-block" data-act="instalarApp">Cómo instalar la app</button></div>`;
+  else if (st === 'bloqueado') h = `<div class="card stack-s"><span class="b">Los avisos están bloqueados</span><span class="small muted">Antes elegiste no recibirlos. Para activarlos, entrá a la configuración del celular → Notificaciones → buscá esta app (o el navegador) y permitilas.</span></div>`;
+  else h = '';
+  cajas.forEach(c => { c.innerHTML = h; });
+}
+
 /* ================= Estado ================= */
 const S = {
   me: null, config: null, tipos: [], feriados: {}, feriadosList: [], excepciones: [],
@@ -417,9 +484,22 @@ async function boot() {
     if (!me.activo) return renderBloqueado();
     if (faltanDatos) return renderPerfil();
     await cargarBase();
-    go(esAdmin() ? 'solicitudes' : 'calendario');
+    go(seccionDelLink() || (esAdmin() ? 'solicitudes' : 'calendario'));
+    relinkearAvisos();
   } finally { booting = false; }
 }
+// Los avisos abren la app en una sección (por ejemplo …/#pedidos)
+function seccionDelLink() {
+  const pedida = (location.hash || '').slice(1);
+  if (!pedida) return null;
+  history.replaceState(null, '', location.pathname);
+  const permitidas = esAdmin() ? ['solicitudes', 'personal', 'preguntas', 'registro', 'calendarioGeneral'] : ['calendario', 'pedidos', 'ayuda', 'links', 'grillas'];
+  return permitidas.includes(pedida) ? pedida : null;
+}
+window.addEventListener('hashchange', () => {
+  if (!S.me || !S.config || S.me.pendiente || !S.me.activo) return;
+  const v = seccionDelLink(); if (v) { cerrarModal(); go(v); }
+});
 async function cargarBase() {
   const [c, t, f, e] = await Promise.all([
     sb.from('configuracion').select('*').maybeSingle(),
@@ -434,6 +514,7 @@ async function cargarBase() {
   S.excepciones = e.data || [];
 }
 async function salir() {
+  await desvincularAvisos();
   try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch (_) {}
   await sb.auth.signOut();
   S.me = null;
@@ -461,6 +542,7 @@ function renderLogin() {
         <div id="gbtn" style="min-height:44px;display:flex;justify-content:center"><span class="small muted">Cargando el botón de Google…</span></div>
         ${local ? '<p class="small" style="color:var(--bad)">El ingreso con Google solo funciona con la página publicada en internet, no abriendo el archivo desde la computadora.</p>' : ''}
         <p class="small muted">Si es tu primera vez, vas a quedar esperando la aprobación. Te conviene avisarle a tu coordinador.</p>
+        <p class="small muted center"><a href="privacidad.html">Política de privacidad</a></p>
         <p class="small muted center">¿No aparece el botón? <button class="btn-link" style="min-height:auto;padding:0;font-size:13px" data-act="loginGoogle">Entrar de otra forma</button></p>
       </main>
     </div>`;
@@ -558,6 +640,7 @@ async function go(view, reload = true) {
 function redraw() {
   const main = document.getElementById('main');
   if (main && VIEWS[S.view]) main.innerHTML = VIEWS[S.view].draw();
+  pintarAvisos();
 }
 
 /* ================= Trabajador: estructura ================= */
@@ -582,10 +665,11 @@ VIEWS.calendario = {
     }
     const { y, m } = S.w.cal;
     const r = gridRange(y, m);
-    const [oc, sal, mis] = await Promise.all([
+    const [oc, sal, mis, esp] = await Promise.all([
       sb.rpc('ocupacion', { p_desde: r.start, p_hasta: r.end }),
       sb.rpc('mi_saldo', { p_anio: y }),
-      sb.from('solicitudes').select('id,tipo,fecha_inicio,fecha_fin,estado').in('estado', ['pendiente', 'aprobado'])
+      sb.from('solicitudes').select('id,tipo,fecha_inicio,fecha_fin,estado').in('estado', ['pendiente', 'aprobado']),
+      sb.from('lista_espera').select('id,tipo,fecha_inicio,fecha_fin,avisado_at').gte('fecha_inicio', hoy())
     ]);
     if (oc.error) throw oc.error;
     if (sal.error) throw sal.error;
@@ -593,7 +677,8 @@ VIEWS.calendario = {
     S.w.data = {
       r, ocup: Object.fromEntries((oc.data || []).map(o => [o.fecha, o.ocupados])),
       saldo: (sal.data && sal.data[0]) || { semanas_total: 0, semanas_usadas: 0, aca_total: 0, aca_usadas: 0 },
-      mis: mis.data || []
+      mis: mis.data || [],
+      espera: (esp && esp.data) || []
     };
   },
   draw() {
@@ -612,12 +697,15 @@ VIEWS.calendario = {
       const s = addDays(D.r.start, w * 7), e = addDays(s, 6);
       const days = []; for (let i = 0; i < 7; i++) days.push(info(addDays(s, i)));
       const weekBlocked = s < hoyS || !abiertoISO(s) || !abiertoISO(e) || days.some(x => x.full || x.mio);
+      const weekEspera = !(s < hoyS || !abiertoISO(s) || !abiertoISO(e) || days.some(x => x.mio)) && days.some(x => x.full);
+      const enEspera = (t, f) => (D.espera || []).some(z => z.tipo === t && z.fecha_inicio === f);
       rows += '<div class="cal-row">' + days.map(x => {
-        const disabled = sinSaldo || (vac ? weekBlocked : (x.past || !x.ab || x.full || x.mio));
+        const espera = !sinSaldo && (vac ? weekEspera : (x.full && !x.past && x.ab && !x.mio));
+        const disabled = !espera && (sinSaldo || (vac ? weekBlocked : (x.past || !x.ab || x.full || x.mio)));
         const selected = vac ? S.w.sel === s : S.w.sel === x.d;
         let cls = 'day', sub = '';
         if (x.mio) { cls += x.mio.estado === 'aprobado' ? ' mine-a' : ' mine-p'; sub = x.mio.estado === 'aprobado' ? 'Tuyo ✓' : 'Tuyo'; }
-        else if (x.full) { cls += ' full'; sub = 'Lleno'; }
+        else if (x.full) { cls += ' full'; sub = enEspera(tipo, vac ? s : x.d) ? 'Esperás' : 'Lleno'; }
         else if (x.fer) { sub = 'Feriado'; }
         else if (x.count > 0) { sub = x.count + '/' + cupo; }
         if (!x.mio && !x.full && x.count > 0) cls += ' part';
@@ -625,7 +713,7 @@ VIEWS.calendario = {
         if (x.other) cls += ' other';
         if (selected) cls = 'day sel';
         const label = cap(fechaLarga(x.d)) + (sub ? ', ' + sub : '') + (x.fer ? ' (' + x.fer + ')' : '');
-        return `<button class="${cls}" data-act="pick" data-v="${vac ? s : x.d}" ${disabled ? 'disabled' : ''} aria-pressed="${selected}" aria-label="${esc(label)}"><span class="n">${parse(x.d).getUTCDate()}</span><span class="s">${esc(sub)}</span></button>`;
+        return `<button class="${cls}" data-act="${espera ? 'espera' : 'pick'}" data-v="${vac ? s : x.d}" ${disabled ? 'disabled' : ''} aria-pressed="${selected}" aria-label="${esc(label)}"><span class="n">${parse(x.d).getUTCDate()}</span><span class="s">${esc(sub)}</span></button>`;
       }).join('') + '</div>';
     }
     const disp = mesesDisponibles();
@@ -696,25 +784,42 @@ const ESTADO = {
 };
 VIEWS.pedidos = {
   async load() {
-    const { data, error } = await sb.from('solicitudes').select('id,tipo,fecha_inicio,fecha_fin,estado,created_at').order('fecha_inicio', { ascending: false });
-    if (error) throw error;
-    S.w.pedidos = data || [];
+    const [p, e] = await Promise.all([
+      sb.from('solicitudes').select('id,tipo,fecha_inicio,fecha_fin,estado,created_at,motivo,resuelto_por').order('fecha_inicio', { ascending: false }),
+      sb.from('lista_espera').select('id,tipo,fecha_inicio,fecha_fin,avisado_at').gte('fecha_inicio', hoy()).order('fecha_inicio')
+    ]);
+    if (p.error) throw p.error;
+    S.w.pedidos = p.data || [];
+    S.w.espera = (e && e.data) || [];
   },
   draw() {
     const P = S.w.pedidos;
     const lista = P.length ? P.map(p => {
-      const [t, c, i] = ESTADO[p.estado];
-      const nota = p.estado === 'rechazado' ? 'Los días volvieron a estar disponibles para todo el equipo.' : p.estado === 'cancelado' ? 'Este pedido se canceló. Los días volvieron a estar disponibles para todo el equipo.' : '';
+      let [t, c, i] = ESTADO[p.estado];
+      const anuladoPorCoord = p.estado === 'cancelado' && p.resuelto_por && p.resuelto_por !== S.me.id;
+      if (anuladoPorCoord) t = 'Anulado por coordinación';
+      const nota = p.estado === 'rechazado' ? 'Los días volvieron a estar disponibles para todo el equipo.' : anuladoPorCoord ? 'Un coordinador anuló este pedido. Los días volvieron a estar disponibles para todo el equipo.' : p.estado === 'cancelado' ? 'Cancelaste este pedido. Los días volvieron a estar disponibles para todo el equipo.' : '';
       return `<div class="item">
         <div class="between" style="align-items:flex-start;flex-wrap:nowrap">
           <div class="stack-s" style="gap:2px;min-width:0"><span class="xs muted b">${p.tipo === 'vacaciones' ? 'VACACIONES' : 'ACA'}</span><span class="b" style="font-size:16px">${esc(rango(p.fecha_inicio, p.fecha_fin, p.tipo))}</span></div>
           <span class="pill ${c}">${i}${t}</span>
         </div>
+        ${p.motivo && (p.estado === 'rechazado' || anuladoPorCoord) ? `<div class="stack-s"><span class="xs b" style="color:var(--bad)">Motivo</span><div class="q-box" style="background:var(--bad-bg);color:#5A1A13">${esc(p.motivo)}</div></div>` : ''}
         ${nota ? `<p class="small muted">${nota}</p>` : ''}
         ${p.estado === 'pendiente' ? `<button class="btn btn-soft" style="color:var(--bad)" data-act="cancelar" data-id="${p.id}">Cancelar pedido</button>` : ''}
       </div>`;
     }).join('') : '<div class="empty">Todavía no hiciste ningún pedido. Elegí tus días desde el Calendario.</div>';
+    const espera = (S.w.espera || []).map(e => `<div class="item">
+        <div class="between" style="align-items:flex-start;flex-wrap:nowrap">
+          <div class="stack-s" style="gap:2px;min-width:0"><span class="xs muted b">${e.tipo === 'vacaciones' ? 'VACACIONES' : 'ACA'} · LISTA DE ESPERA</span><span class="b" style="font-size:16px">${esc(rango(e.fecha_inicio, e.fecha_fin, e.tipo))}</span></div>
+          <span class="pill ${e.avisado_at ? 'p-ok' : 'p-gray'}">${e.avisado_at ? '¡Se liberó!' : 'Esperando'}</span>
+        </div>
+        <p class="small muted">${e.avisado_at ? 'Se liberó un lugar. Pedilo desde el Calendario antes de que lo tome otra persona.' : 'Si alguien libera un lugar en estas fechas, te avisamos.'}</p>
+        <button class="btn btn-soft" data-act="quitarEspera" data-id="${e.id}">Salir de la lista de espera</button>
+      </div>`).join('');
     return `<h1>Mis pedidos</h1>${lista}
+      ${espera ? `<h2 style="padding-left:2px">Lista de espera</h2>${espera}` : ''}
+      ${cajaAvisos()}
       <div class="card stack-s" style="background:var(--accent-xl)">
         <h2 style="color:var(--accent-d)">¿Cómo funciona?</h2>
         <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.4;color:var(--ink2)">
@@ -722,6 +827,7 @@ VIEWS.pedidos = {
           <li>Cada semana va de sábado a viernes. Si cae un feriado en el medio, queda incluido.</li>
           <li>Por día pueden faltar como máximo ${S.config.cupo_diario} personas. Un pedido pendiente ya ocupa lugar.</li>
           <li>Si lo rechazan o lo cancelás, los días vuelven a estar disponibles para todos los compañeros del equipo.</li>
+          <li>Si unas fechas están completas, tocalas en el Calendario para anotarte en la lista de espera.</li>
         </ul>
       </div>`;
   }
@@ -848,6 +954,8 @@ VIEWS.ayuda = {
       </div>`).join('')}` : ''}
       <h2 style="padding-left:2px">Coordinadores</h2>
       <div class="card divide" style="padding:4px 16px">${admins}</div>
+      <h2 style="padding-left:2px">Avisos</h2>
+      ${cajaAvisos()}
       ${instalada() ? '' : `<h2 style="padding-left:2px">App en el celular</h2>
       <div class="card stack-s"><span class="small" style="color:var(--ink2)">Instalala para abrirla con un toque desde la pantalla de inicio.</span>
         <button class="btn btn-primary btn-block" data-act="instalarApp">Cómo instalar la app</button></div>`}
@@ -873,7 +981,7 @@ async function contarPendientes() {
   });
 }
 function renderAdminShell() {
-  const items = [['solicitudes', 'Solicitudes'], ['calendarioGeneral', 'Calendario general'], ['meses', 'Meses habilitados'], ['grillasAdmin', 'Grillas'], ['linksAdmin', 'Links'], ['personal', 'Personal'], ['preguntas', 'Preguntas'], ['configuracion', 'Configuración']];
+  const items = [['solicitudes', 'Solicitudes'], ['calendarioGeneral', 'Calendario general'], ['meses', 'Meses habilitados'], ['grillasAdmin', 'Grillas'], ['linksAdmin', 'Links'], ['personal', 'Personal'], ['preguntas', 'Preguntas'], ['registro', 'Registro'], ['configuracion', 'Configuración']];
   $app().innerHTML = `
     <div class="a-shell">
       <aside class="a-side">
@@ -900,7 +1008,7 @@ function necesarios(n) {
 }
 VIEWS.solicitudes = {
   async load() {
-    const sel = 'id,tipo,fecha_inicio,fecha_fin,estado,created_at,resuelto_at,personal(nombre,apellido,email),aprobaciones(admin_id,voto)';
+    const sel = 'id,tipo,fecha_inicio,fecha_fin,estado,created_at,resuelto_at,motivo,personal!solicitudes_personal_id_fkey(nombre,apellido,email),resolvio:personal!solicitudes_resuelto_por_fkey(nombre,apellido,rol),aprobaciones(admin_id,voto)';
     let q = sb.from('solicitudes').select(sel);
     q = S.a.tab === 'pend' ? q.eq('estado', 'pendiente').order('fecha_inicio') : q.neq('estado', 'pendiente').order('resuelto_at', { ascending: false, nullsFirst: false }).limit(60);
     const [s, ad] = await Promise.all([q, sb.from('personal').select('id,nombre,apellido,email').eq('rol', 'admin').eq('activo', true).order('nombre')]);
@@ -919,9 +1027,13 @@ VIEWS.solicitudes = {
       const [et, ec] = ESTADO[s.estado];
       let resumen;
       if (s.estado === 'pendiente') resumen = ok + ' de ' + nec + ' aprobaciones' + (faltan.length ? ' · faltan ' + faltan.join(', ') : '');
-      else if (s.estado === 'rechazado') resumen = 'Rechazado' + (s.resuelto_at ? ' el ' + fechaTs(s.resuelto_at) : '') + '. El cupo quedó libre.';
-      else if (s.estado === 'aprobado') resumen = 'Aprobado' + (s.resuelto_at ? ' el ' + fechaTs(s.resuelto_at) : '') + '.';
-      else resumen = 'Cancelado' + (s.resuelto_at ? ' el ' + fechaTs(s.resuelto_at) : '') + '.';
+      else {
+        const quien = s.resolvio ? (s.resolvio.rol === 'superadmin' ? 'Fede Admin' : nombreDe(s.resolvio)) : '';
+        const cuando = s.resuelto_at ? ' el ' + fechaTs(s.resuelto_at) : '';
+        if (s.estado === 'rechazado') resumen = 'Rechazado' + (quien ? ' por ' + quien : '') + cuando + '. El cupo quedó libre.';
+        else if (s.estado === 'aprobado') resumen = 'Aprobado' + cuando + '.';
+        else resumen = (quien && quien !== nombreDe(s.personal) ? 'Anulado por ' + quien : 'Cancelado por quien lo pidió') + cuando + '.';
+      }
       const chips = admins.map(a => {
         const v = votos[a.id];
         const st = v === 'aprobado' ? 'background:var(--ok-bg);color:var(--ok)' : v === 'rechazado' ? 'background:var(--bad-bg);color:var(--bad)' : 'background:var(--soft);color:var(--gray)';
@@ -943,7 +1055,7 @@ VIEWS.solicitudes = {
           <span class="pill ${ec}">${s.estado === 'pendiente' ? 'Pendiente' : et}</span>
         </div>
         <div class="between" style="border-top:1px solid var(--line2);padding-top:12px">
-          <div class="stack-s" style="gap:8px"><div class="row" style="gap:6px">${chips}</div><span class="small muted">${esc(resumen)}</span></div>
+          <div class="stack-s" style="gap:8px"><div class="row" style="gap:6px">${chips}</div><span class="small muted">${esc(resumen)}</span>${s.motivo ? `<span class="small" style="color:var(--bad)"><b>Motivo:</b> ${esc(s.motivo)}</span>` : ''}</div>
           ${acciones ? `<div class="row" style="gap:8px">${acciones}</div>` : ''}
         </div>
       </article>`;
@@ -952,6 +1064,7 @@ VIEWS.solicitudes = {
       <div class="stack-s"><h1>Solicitudes</h1>
         <p class="muted small" style="max-width:640px">Cada pedido necesita la aprobación de ${modoTxt}. Con un solo rechazo, queda rechazado y se libera el cupo.${S.me.rol === 'superadmin' ? ' Como Fede Admin podés ver y anular pedidos, pero no votás.' : ''}</p></div>
       ${!admins.length ? '<div class="card small" style="background:var(--warn-bg);color:var(--warn)"><b>Todavía no hay administradores que aprueben.</b> Cargalos desde Personal con el rol "Administrador"; mientras tanto, los pedidos quedan pendientes.</div>' : ''}
+      ${cajaAvisos()}
       <div class="seg" role="group" aria-label="Filtro" style="max-width:360px">
         <button data-act="solTab" data-v="pend" aria-pressed="${S.a.tab === 'pend'}">Pendientes</button>
         <button data-act="solTab" data-v="res" aria-pressed="${S.a.tab === 'res'}">Resueltas</button>
@@ -1192,6 +1305,100 @@ VIEWS.linksAdmin = {
   }
 };
 
+/* ---------- Registro de cambios (admin) ---------- */
+VIEWS.registro = {
+  async load() {
+    const { data, error } = await sb.from('registro').select('*').order('creado_at', { ascending: false }).limit(400);
+    if (error) throw error;
+    S.a.registro = data || [];
+  },
+  draw() {
+    const q = (S.a.regQ || '').trim().toLowerCase();
+    const L = (S.a.registro || []).filter(r => !q || ((r.autor_nombre || '') + ' ' + r.accion + ' ' + (r.detalle || '')).toLowerCase().includes(q));
+    let dia = '', html = '';
+    for (const r of L) {
+      const d = new Date(r.creado_at).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: TZ });
+      if (d !== dia) { if (dia) html += '</div>'; dia = d; html += `<h2 style="padding-left:2px;margin-top:6px">${esc(cap(d))}</h2><div class="card divide" style="padding:2px 16px;max-width:860px">`; }
+      const hora = new Date(r.creado_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+      html += `<div style="padding:10px 0;display:flex;gap:12px;align-items:flex-start">
+        <span class="small muted" style="min-width:44px;padding-top:1px">${esc(hora)}</span>
+        <div class="stack-s" style="gap:2px;min-width:0"><span><b>${esc(r.autor_nombre || 'Sistema')}</b> · ${esc(r.accion)}</span>${r.detalle ? `<span class="small muted" style="overflow-wrap:anywhere">${esc(r.detalle)}</span>` : ''}</div>
+      </div>`;
+    }
+    if (dia) html += '</div>';
+    return `
+      <div class="stack-s"><h1>Registro de cambios</h1><p class="muted small" style="max-width:680px">Todo lo que se hace en la app queda anotado acá: quién pidió, aprobó, rechazó o anuló cada pedido, quién cambió las reglas, habilitó personas o editó links y grillas. No se puede borrar ni modificar.</p></div>
+      <div class="field" style="max-width:420px"><label for="reg-q" class="sr">Buscar en el registro</label><input class="input input-sm" id="reg-q" type="search" placeholder="Buscar por nombre o acción" value="${esc(S.a.regQ || '')}" data-input="regQ"></div>
+      ${html || '<div class="empty" style="max-width:860px">Todavía no hay movimientos registrados.</div>'}
+      ${(S.a.registro || []).length >= 400 ? '<p class="small muted">Se muestran los últimos 400 movimientos. El historial completo está en la copia en Excel (Configuración).</p>' : ''}`;
+  }
+};
+
+/* ---------- Copia de seguridad en Excel (admin) ---------- */
+async function traerTodo(tabla, select, orden) {
+  const filas = [];
+  for (let desde = 0; ; desde += 1000) {
+    let q = sb.from(tabla).select(select).range(desde, desde + 999);
+    if (orden) q = q.order(orden, { ascending: true });
+    const { data, error } = await q;
+    if (error) throw error;
+    filas.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return filas;
+}
+function cargarScript(src) {
+  return new Promise((ok, mal) => {
+    if (document.querySelector(`script[src="${src}"]`)) return ok();
+    const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => mal(new Error('No se pudo cargar la herramienta de Excel. Revisá la conexión.'));
+    document.head.appendChild(s);
+  });
+}
+async function descargarExcel(btn) {
+  setBusy(btn, true, 'Preparando el archivo…');
+  try {
+    await cargarScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+    const [pers, sols, votos, esp, cons, links, fer, tipos, conf, reg] = await Promise.all([
+      traerTodo('personal', '*', 'email'),
+      traerTodo('solicitudes', '*', 'fecha_inicio'),
+      traerTodo('aprobaciones', '*', 'created_at'),
+      traerTodo('lista_espera', '*', 'created_at'),
+      traerTodo('consultas', '*', 'created_at'),
+      traerTodo('links', '*', 'id'),
+      traerTodo('feriados', '*', 'fecha'),
+      traerTodo('tipos_contratacion', '*', 'id'),
+      traerTodo('configuracion', '*'),
+      traerTodo('registro', '*', 'creado_at')
+    ]);
+    const P = Object.fromEntries(pers.map(p => [p.id, p]));
+    const N = id => id && P[id] ? nombreDe(P[id]) : '';
+    const tipoN = id => (tipos.find(t => t.id === id) || {}).nombre || '';
+    const ts = v => v ? new Date(v).toLocaleString('es-AR', { timeZone: TZ }) : '';
+    const hojas = {
+      'Pedidos': sols.map(s => ({ Persona: N(s.personal_id), Mail: (P[s.personal_id] || {}).email || '', Tipo: s.tipo === 'vacaciones' ? 'Vacaciones' : 'ACA', Desde: s.fecha_inicio, Hasta: s.fecha_fin, Estado: s.estado, Motivo: s.motivo || '', 'Pedido el': ts(s.created_at), 'Resuelto el': ts(s.resuelto_at), 'Resuelto por': N(s.resuelto_por) })),
+      'Votos': votos.map(v => { const s = sols.find(x => x.id === v.solicitud_id) || {}; return { Coordinador: N(v.admin_id), Voto: v.voto, Persona: N(s.personal_id), Desde: s.fecha_inicio || '', Hasta: s.fecha_fin || '', Fecha: ts(v.created_at) }; }),
+      'Personal': pers.map(p => ({ Nombre: p.nombre || '', Apellido: p.apellido || '', Mail: p.email, Teléfono: p.telefono || '', Rol: ROL_TXT[p.rol] || p.rol, Contratación: tipoN(p.tipo_contratacion_id), Habilitado: p.activo ? 'Sí' : 'No', 'Esperando aprobación': p.pendiente ? 'Sí' : 'No', 'Alta': ts(p.created_at) })),
+      'Lista de espera': esp.map(e => ({ Persona: N(e.personal_id), Tipo: e.tipo, Desde: e.fecha_inicio, Hasta: e.fecha_fin, Anotado: ts(e.created_at), 'Avisado': ts(e.avisado_at) })),
+      'Preguntas': cons.map(c => ({ Persona: N(c.personal_id), Pregunta: c.texto, Fecha: ts(c.created_at), Respuesta: c.respuesta || '', 'Respondió': N(c.respondido_por), 'Respondida el': ts(c.respondido_at) })),
+      'Links': links.map(l => ({ Sección: l.categoria, Nombre: l.titulo, Descripción: l.descripcion || '', Link: l.url })),
+      'Feriados': fer.map(f => ({ Fecha: f.fecha, Nombre: f.nombre })),
+      'Contrataciones': tipos.map(t => ({ Nombre: t.nombre, 'Semanas por año': t.semanas_vacaciones, 'ACA por año': t.aca_anuales })),
+      'Reglas': conf.map(c => ({ 'Cupo por día': c.cupo_diario, 'Meses habilitados': c.meses_habilitados, 'Aprobación': c.aprobacion })),
+      'Registro': reg.map(r => ({ Fecha: ts(r.creado_at), Quién: r.autor_nombre || 'Sistema', Acción: r.accion, Detalle: r.detalle || '' }))
+    };
+    const wb = XLSX.utils.book_new();
+    for (const [nombre, filas] of Object.entries(hojas)) {
+      const ws = XLSX.utils.json_to_sheet(filas.length ? filas : [{ '(vacío)': '' }]);
+      const cols = Object.keys(filas[0] || { '(vacío)': '' });
+      ws['!cols'] = cols.map(c => ({ wch: Math.min(60, Math.max(c.length, ...filas.map(f => String(f[c] ?? '').length)) + 2) }));
+      XLSX.utils.book_append_sheet(wb, ws, nombre);
+    }
+    XLSX.writeFile(wb, 'Grillas-ATP-copia-' + hoy() + '.xlsx');
+    toast('Listo. El archivo se descargó en tu dispositivo.');
+  } catch (e) { toast(errMsg(e), true); }
+  setBusy(btn, false);
+}
+
 /* ---------- Preguntas (admin) ---------- */
 VIEWS.preguntas = {
   async load() {
@@ -1231,6 +1438,11 @@ VIEWS.configuracion = {
     const radios = [['todos', 'Todos los administradores', 'Con un solo rechazo, el pedido queda rechazado.'], ['mayoria', 'La mayoría', 'Más ágil si algún administrador no entra seguido.'], ['uno', 'Cualquier administrador', 'El primero que lo revisa decide.']];
     return `
       <div class="stack-s"><h1>Configuración</h1><p class="muted small">Las reglas que usa el sistema. Las pueden cambiar los administradores y Fede Admin.</p></div>
+      <section class="card stack-s" style="max-width:820px;background:var(--accent-xl);box-shadow:inset 0 0 0 1px #BFD3EE">
+        <h2 style="color:var(--accent-d)">Copia de seguridad</h2>
+        <span class="small" style="color:var(--ink2)">Descarga un Excel con todo: pedidos, votos, personal, lista de espera, preguntas, links, feriados, reglas y el registro de cambios. Conviene hacerlo una vez por mes y guardarlo en un lugar seguro.</span>
+        <div><button class="btn btn-primary" data-act="excel">Descargar copia en Excel</button></div>
+      </section>
       <form id="f-config" class="card stack" style="max-width:820px">
         <h2>Reglas de ausencias</h2>
         <div class="between" style="border-top:1px solid var(--line2);padding-top:12px">
@@ -1310,6 +1522,52 @@ const ACT = {
       <button class="btn btn-soft btn-block" data-act="cerrarModal">Volver</button>`);
   },
   cerrarModal() { cerrarModal(); },
+  async prenderAvisos(d, el) {
+    setBusy(el, true, 'Activando…');
+    try { if (await activarAvisos()) toast('¡Listo! Vas a recibir los avisos en este celular.'); }
+    catch (e) { toast('No se pudieron activar los avisos: ' + errMsg(e), true); }
+    setBusy(el, false); cerrarModal(); pintarAvisos();
+  },
+  async apagarAvisos() {
+    try { const s = await miSuscripcion(); if (s) { await sb.rpc('borrar_suscripcion', { p_endpoint: s.endpoint }); await s.unsubscribe(); } toast('Avisos apagados en este celular.'); }
+    catch (e) { toast(errMsg(e), true); }
+    pintarAvisos();
+  },
+  espera(d) {
+    const vac = S.w.tipo === 'vacaciones', a = d.v, b = vac ? addDays(a, 6) : a;
+    const ya = (S.w.data.espera || []).find(z => z.tipo === S.w.tipo && z.fecha_inicio === a);
+    if (ya) return modal(`<h2 style="font-size:20px">Ya estás en la lista de espera</h2>
+      <div class="card stack-s" style="background:var(--soft)"><span class="b" style="font-size:17px">${esc(rango(a, b, S.w.tipo))}</span></div>
+      <p class="small" style="color:var(--ink2)">Si alguien libera un lugar, te avisamos. Podés salir de la lista desde Mis pedidos.</p>
+      <button class="btn btn-primary btn-block" data-act="cerrarModal">Entendido</button>`);
+    modal(`<h2 style="font-size:20px">${vac ? 'Esta semana está completa' : 'Este día está completo'}</h2>
+      <div class="card stack-s" style="background:var(--soft)"><span class="xs muted b">${vac ? 'VACACIONES · 1 SEMANA' : 'ACA · 1 DÍA'}</span><span class="b" style="font-size:17px">${esc(rango(a, b, S.w.tipo))}</span></div>
+      <p class="small" style="color:var(--ink2)">Ya hay ${S.config.cupo_diario} personas ausentes en ${vac ? 'algún día de esa semana' : 'ese día'}. ¿Querés anotarte en la <b>lista de espera</b>? Si alguien libera su lugar, te avisamos para que lo pidas.</p>
+      <button class="btn btn-primary btn-block" data-act="esperaConfirmar" data-v="${a}">Anotarme en la lista de espera</button>
+      <button class="btn btn-soft btn-block" data-act="cerrarModal">Volver</button>`);
+  },
+  async esperaConfirmar(d, el) {
+    setBusy(el, true, 'Anotando…');
+    const { error } = await sb.rpc('anotarse_espera', { p_tipo: S.w.tipo, p_fecha: d.v });
+    cerrarModal();
+    if (error) return toast(errMsg(error), true);
+    const st = await estadoAvisos();
+    if (st === 'apagado') {
+      modal(`<h2 style="font-size:20px">¡Listo, ya estás anotado!</h2>
+        <p class="small" style="color:var(--ink2)">Para enterarte en el momento en que se libere un lugar, activá los avisos en este celular.</p>
+        <button class="btn btn-primary btn-block" data-act="prenderAvisos">Activar avisos</button>
+        <button class="btn btn-soft btn-block" data-act="cerrarModal">Ahora no</button>`);
+    } else toast('Listo, estás en la lista de espera. Te avisamos si se libera un lugar.');
+    go('calendario');
+  },
+  async quitarEspera(d, el) {
+    if (!confirm('¿Salir de la lista de espera de estas fechas?')) return;
+    setBusy(el, true);
+    const { error } = await sb.rpc('quitar_espera', { p_id: Number(d.id) });
+    if (error) { setBusy(el, false); return toast(errMsg(error), true); }
+    toast('Saliste de la lista de espera.');
+    go('pedidos');
+  },
   ocultarInstalar() { guardarLS('instalar_oculto', '1'); toast('Si después querés instalarla, la opción está en Ayuda.'); redraw(); },
   async instalarApp() {
     if (promptInstalar) {
@@ -1332,8 +1590,14 @@ const ACT = {
     cerrarModal();
     if (error) { toast(errMsg(error), true); return go('calendario'); }
     S.w.sel = null;
-    toast('Pedido enviado. Acordate de escribirles por privado a los coordinadores.');
-    go('calendario');
+    await go('calendario');
+    if (await estadoAvisos() === 'apagado') {
+      modal(`<h2 style="font-size:20px">¡Pedido enviado!</h2>
+        <p class="small" style="color:var(--ink2)">Quedó pendiente de revisión. Acordate de escribirles por privado a los coordinadores.</p>
+        <p class="small" style="color:var(--ink2)">¿Querés que te avisemos al celular cuando lo aprueben o lo rechacen?</p>
+        <button class="btn btn-primary btn-block" data-act="prenderAvisos">Sí, activar avisos</button>
+        <button class="btn btn-soft btn-block" data-act="cerrarModal">Ahora no</button>`);
+    } else toast('Pedido enviado. Acordate de escribirles por privado a los coordinadores.');
   },
   async cancelar(d, el) {
     if (!confirm('¿Cancelar este pedido? Los días vuelven a estar disponibles para todo el equipo.')) return;
@@ -1347,18 +1611,25 @@ const ACT = {
 
   /* admin */
   solTab(d) { S.a.tab = d.v; go('solicitudes'); },
-  async votar(d, el) {
-    if (d.v === 'rechazado' && !confirm('¿Rechazar este pedido? Se libera el cupo y la persona recupera sus días.')) return;
+  votar(d, el) {
+    if (d.v === 'rechazado') return pedirMotivo('rechazar', d.id);
+    return ACT.votarConfirmado(d, el);
+  },
+  anular(d) { pedirMotivo('anular', d.id); },
+  async votarConfirmado(d, el) {
     setBusy(el, true);
-    const { data, error } = await sb.rpc('votar_solicitud', { p_id: d.id, p_voto: d.v });
+    const motivo = d.v === 'rechazado' ? (document.getElementById('motivo-txt') || {}).value || '' : null;
+    const { data, error } = await sb.rpc('votar_solicitud', { p_id: d.id, p_voto: d.v, p_motivo: motivo });
+    cerrarModal();
     if (error) { setBusy(el, false); return toast(errMsg(error), true); }
     toast(data === 'aprobado' ? 'Pedido aprobado.' : data === 'rechazado' ? 'Pedido rechazado.' : 'Voto registrado. Faltan otras aprobaciones.');
     go('solicitudes');
   },
-  async anular(d, el) {
-    if (!confirm('¿Anular este pedido? Se libera el cupo y la persona recupera sus días.')) return;
+  async anularConfirmado(d, el) {
     setBusy(el, true);
-    const { error } = await sb.rpc('anular_solicitud', { p_id: d.id });
+    const motivo = (document.getElementById('motivo-txt') || {}).value || '';
+    const { error } = await sb.rpc('anular_solicitud', { p_id: d.id, p_motivo: motivo });
+    cerrarModal();
     if (error) { setBusy(el, false); return toast(errMsg(error), true); }
     toast('Pedido anulado.');
     go(S.view);
@@ -1398,6 +1669,7 @@ const ACT = {
   },
   pf(d) { S.a.pf = d.v; redraw(); },
   pregTab(d) { S.a.pregTab = d.v; go('preguntas'); },
+  excel(d, el) { descargarExcel(el); },
   linkEdit(d) { S.a.linkEdit = Number(d.id); redraw(); },
   linkEditCancel() { S.a.linkEdit = null; redraw(); },
   async linkBorrar(d, el) {
@@ -1571,11 +1843,12 @@ document.addEventListener('submit', e => {
   if (fn) { e.preventDefault(); fn(f); }
 });
 document.addEventListener('input', e => {
-  if (e.target.dataset.input === 'buscar') {
-    S.a.q = e.target.value;
+  if (e.target.dataset.input === 'buscar' || e.target.dataset.input === 'regQ') {
+    if (e.target.dataset.input === 'regQ') S.a.regQ = e.target.value; else S.a.q = e.target.value;
+    const idInput = e.target.id;
     const pos = e.target.selectionStart;
     redraw();
-    const inp = document.getElementById('buscar');
+    const inp = document.getElementById(idInput);
     if (inp) { inp.focus(); try { inp.setSelectionRange(pos, pos); } catch (_) {} }
   }
 });
