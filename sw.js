@@ -1,7 +1,7 @@
 // Grillas ATP — mantiene la app instalada siempre al día.
 // No guarda copias viejas de la página: siempre busca la última versión en internet.
 // Si no hay conexión, muestra un aviso claro en vez de una pantalla de error.
-const VERSION = '2026-11-12';
+const VERSION = '2026-11-27';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
@@ -33,6 +33,7 @@ self.addEventListener('push', (e) => {
     body: d.body || '',
     icon: 'icon-192.png',
     lang: 'es',
+    silent: !!d.silent, // las alertas de la coordinación llegan sin sonido ni vibración
     tag: d.tag || undefined,
     data: { url: d.url || './' }
   }));

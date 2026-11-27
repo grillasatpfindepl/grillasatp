@@ -63,6 +63,11 @@ p{margin:0}
 .btn:active:not(:disabled),.day:active:not(:disabled){opacity:.75}
 
 /* Pills */
+.alerta{background:#fff;border-radius:14px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;box-shadow:inset 4px 0 0 var(--accent),0 1px 2px rgba(22,32,43,.06)}
+.alerta .ic{flex-shrink:0;width:36px;height:36px;border-radius:10px;background:var(--accent-xl);color:var(--accent-d);display:flex;align-items:center;justify-content:center}
+.alerta p{margin:4px 0 0;white-space:pre-line;color:var(--ink2);font-size:15px;line-height:1.45;overflow-wrap:anywhere}
+.alerta .t{font-weight:700;font-size:16px;overflow-wrap:anywhere}
+.p-nueva{background:var(--accent);color:#fff;height:22px;font-size:11px}
 .pill{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:13px;font-size:12px;font-weight:700;white-space:nowrap}
 .p-pend{background:var(--warn-bg);color:var(--warn)}
 .p-ok{background:var(--ok-bg);color:var(--ok)}
@@ -495,7 +500,7 @@ function seccionDelLink() {
   const pedida = (location.hash || '').slice(1);
   if (!pedida) return null;
   history.replaceState(null, '', location.pathname);
-  const permitidas = esAdmin() ? ['solicitudes', 'personal', 'preguntas', 'registro', 'calendarioGeneral', 'grillasAdmin'] : ['calendario', 'pedidos', 'ayuda', 'links', 'grillas'];
+  const permitidas = esAdmin() ? ['solicitudes', 'personal', 'preguntas', 'registro', 'calendarioGeneral', 'grillasAdmin', 'alertas'] : ['calendario', 'pedidos', 'ayuda', 'links', 'grillas'];
   return permitidas.includes(pedida) ? pedida : null;
 }
 window.addEventListener('hashchange', () => {
@@ -861,9 +866,41 @@ function drawGrillas(lista, cat, admin) {
         ${g.url ? `<a class="grilla-img" href="${esc(g.url)}" target="_blank" rel="noopener" aria-label="Abrir ${esc(g.titulo)} en tamaño completo"><img src="${esc(g.url)}" alt="${esc(g.titulo)}" loading="lazy"></a>` : '<p class="small muted">No se pudo cargar la imagen.</p>'}
       </div>`).join('') : `<div class="empty">Todavía no hay grillas de ${cat}.</div>`}`;
 }
+/* ---------- Alertas de la coordinación ---------- */
+const ICON_ALERTA = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+async function cargarAlertasVigentes() {
+  const { data, error } = await sb.from('alertas').select('*').gt('visible_hasta', new Date().toISOString()).order('creado_at', { ascending: false }).limit(10);
+  if (error) return [];
+  return data || [];
+}
+// Lo que ya se vio al abrir la app: las alertas más nuevas muestran "Nueva" mientras la app siga abierta
+let VISTA_AL_ABRIR = null;
+function leerVista() {
+  if (VISTA_AL_ABRIR === null) { try { VISTA_AL_ABRIR = +localStorage.getItem('alerta_vista') || 0; } catch (_) { VISTA_AL_ABRIR = 0; } }
+  return VISTA_AL_ABRIR;
+}
+function marcarVistas(lista) {
+  const max = Math.max(0, ...lista.map(a => +a.id));
+  try { if (max > leerVista()) localStorage.setItem('alerta_vista', String(max)); } catch (_) {}
+}
+function cajaAlertas(lista, vistaAntes) {
+  if (!lista || !lista.length) return '';
+  return `<section class="stack-s" aria-label="Alertas de la coordinación">${lista.map(a => `
+    <div class="alerta" role="note">
+      <span class="ic">${ICON_ALERTA}</span>
+      <div style="min-width:0;flex:1">
+        <div class="row" style="gap:8px;row-gap:4px"><span class="t">${esc(a.titulo)}</span>${+a.id > vistaAntes ? '<span class="pill p-nueva">Nueva</span>' : ''}</div>
+        <p>${esc(a.mensaje)}</p>
+        <span class="xs muted">${esc(a.autor_nombre || 'Coordinación')} · ${esc(fechaTs(a.creado_at))}</span>
+      </div>
+    </div>`).join('')}</section>`;
+}
 VIEWS.grillas = {
-  async load() { S.w.grillas = await cargarGrillas(); },
-  draw() { return '<h1>Grillas</h1>' + bannerInstalar() + drawGrillas(S.w.grillas, S.w.grillaCat, false); }
+  async load() {
+    const [g, al] = await Promise.all([cargarGrillas(), cargarAlertasVigentes()]);
+    S.w.grillas = g; S.w.alertas = al; S.w.alertaVista = leerVista(); marcarVistas(al);
+  },
+  draw() { return '<h1>Grillas</h1>' + cajaAlertas(S.w.alertas, S.w.alertaVista) + bannerInstalar() + drawGrillas(S.w.grillas, S.w.grillaCat, false); }
 };
 
 /* ---------- Links ---------- */
@@ -997,7 +1034,7 @@ async function contarPendientes() {
   });
 }
 function renderAdminShell() {
-  const items = [['solicitudes', 'Solicitudes'], ['calendarioGeneral', 'Calendario general'], ['meses', 'Meses habilitados'], ['grillasAdmin', 'Grillas'], ['linksAdmin', 'Links y mails'], ['personal', 'Personal'], ['preguntas', 'Preguntas'], ['registro', 'Registro'], ['configuracion', 'Configuración']];
+  const items = [['solicitudes', 'Solicitudes'], ['calendarioGeneral', 'Calendario general'], ['meses', 'Meses habilitados'], ['grillasAdmin', 'Grillas'], ['alertas', 'Alertas'], ['linksAdmin', 'Links y mails'], ['personal', 'Personal'], ['preguntas', 'Preguntas'], ['registro', 'Registro'], ['configuracion', 'Configuración']];
   $app().innerHTML = `
     <div class="a-shell">
       <aside class="a-side">
@@ -1175,9 +1212,13 @@ VIEWS.meses = {
 
 /* ---------- Grillas (admin) ---------- */
 VIEWS.grillasAdmin = {
-  async load() { S.a.grillas = await cargarGrillas(); },
+  async load() {
+    const [g, al] = await Promise.all([cargarGrillas(), cargarAlertasVigentes()]);
+    S.a.grillas = g; S.a.alertasV = al; S.a.alertaVista = leerVista(); marcarVistas(al);
+  },
   draw() {
     return `
+      ${S.a.alertasV && S.a.alertasV.length ? `<div style="max-width:720px">${cajaAlertas(S.a.alertasV, S.a.alertaVista)}</div>` : ''}
       <div class="stack-s"><h1>Grillas</h1><p class="muted small">Subí la grilla como imagen (JPG, PNG o WEBP, hasta 10 MB). La ven todos los que tienen cuenta.</p></div>
       <form id="f-grilla" class="card stack" style="max-width:720px">
         <h2>Subir grilla</h2>
@@ -1189,6 +1230,43 @@ VIEWS.grillasAdmin = {
         <div><button class="btn btn-primary" type="submit">Subir grilla</button></div>
       </form>
       <div class="stack" style="max-width:720px">${drawGrillas(S.a.grillas, S.a.grillaCat, true)}</div>`;
+  }
+};
+
+/* ---------- Alertas (admin) ---------- */
+VIEWS.alertas = {
+  async load() {
+    const { data, error } = await sb.from('alertas').select('*').order('creado_at', { ascending: false }).limit(50);
+    if (error) throw error;
+    S.a.alertas = data || [];
+  },
+  draw() {
+    const ahora = Date.now();
+    const lista = S.a.alertas.map(a => {
+      const vigente = new Date(a.visible_hasta).getTime() > ahora;
+      return `<div class="item stack-s">
+        <div class="between" style="align-items:flex-start;gap:10px">
+          <div class="stack-s" style="gap:2px;min-width:0"><span class="b" style="overflow-wrap:anywhere">${esc(a.titulo)}</span>
+            <span class="xs muted">${esc(a.autor_nombre || '—')} · ${esc(fechaTs(a.creado_at))}</span></div>
+          <span class="pill ${vigente ? 'p-ok' : 'p-gray'}">${vigente ? 'Visible hasta el ' + esc(fechaTs(a.visible_hasta)) : 'Ya no se ve'}</span>
+        </div>
+        <p class="small" style="margin:0;white-space:pre-line;color:var(--ink2);overflow-wrap:anywhere">${esc(a.mensaje)}</p>
+        <div><button class="btn btn-danger btn-sm" data-act="alertaBorrar" data-id="${a.id}">Borrar</button></div>
+      </div>`;
+    }).join('');
+    return `
+      <div class="stack-s"><h1>Alertas</h1><p class="muted small" style="max-width:680px">Para avisos importantes a todo el equipo. Llegan al instante como notificación <b>sin sonido</b> a quienes activaron los avisos en su celular, y además quedan arriba de todo en la pantalla de Grillas durante los días que elijas.</p></div>
+      <form id="f-alerta" class="card stack" style="max-width:720px">
+        <h2>Nueva alerta</h2>
+        <div class="field"><label for="al-titulo">Título</label><input class="input" id="al-titulo" name="titulo" maxlength="80" required placeholder="Ej.: Hoy la sala 2 abre a las 15 h"></div>
+        <div class="field"><label for="al-msg">Mensaje</label><textarea class="textarea" id="al-msg" name="mensaje" maxlength="500" required placeholder="Escribí el aviso completo. Hasta 500 caracteres."></textarea></div>
+        <div class="row" style="align-items:flex-end">
+          <div class="field" style="flex:0 1 240px"><label for="al-dias">Se ve en la app durante</label><select class="input" id="al-dias" name="dias"><option value="1">1 día</option><option value="3">3 días</option><option value="7" selected>7 días</option><option value="30">30 días</option></select></div>
+          <button class="btn btn-primary" type="submit">Enviar a todo el equipo</button>
+        </div>
+        <p class="xs muted" style="margin:0">Le llega a todas las personas habilitadas (trabajadores y coordinadores), menos a vos. Queda anotado en el Registro.</p>
+      </form>
+      <div class="stack" style="max-width:720px"><h2 style="padding-left:2px">Enviadas</h2>${lista || '<div class="empty">Todavía no se envió ninguna alerta.</div>'}</div>`;
   }
 };
 
@@ -1686,6 +1764,14 @@ const ACT = {
     if (error) return toast(errMsg(error), true);
     go('meses');
   },
+  async alertaBorrar(d, el) {
+    if (!confirm('¿Borrar esta alerta? Deja de verse en la app. (Las notificaciones que ya llegaron a los celulares no se pueden retirar.)')) return;
+    setBusy(el, true);
+    const { error } = await sb.rpc('borrar_alerta', { p_id: +d.id });
+    if (error) { setBusy(el, false); return toast(errMsg(error), true); }
+    toast('Alerta borrada.');
+    go('alertas');
+  },
   async grillaBorrar(d, el) {
     if (!confirm('¿Borrar esta grilla? Deja de verse para todos.')) return;
     setBusy(el, true);
@@ -1744,6 +1830,18 @@ const ACT = {
 
 /* ================= Formularios ================= */
 const FORMS = {
+  async 'f-alerta'(f) {
+    const titulo = f.titulo.value.trim(), mensaje = f.mensaje.value.trim(), dias = +f.dias.value;
+    if (!titulo) return toast('Poné un título.', true);
+    if (!mensaje) return toast('Escribí el mensaje.', true);
+    if (!confirm('¿Enviar esta alerta a todo el equipo ahora?')) return;
+    const btn = f.querySelector('button[type=submit]');
+    setBusy(btn, true, 'Enviando…');
+    const { error } = await sb.rpc('enviar_alerta', { p_titulo: titulo, p_mensaje: mensaje, p_dias: dias });
+    if (error) { setBusy(btn, false); return toast(errMsg(error), true); }
+    toast('Alerta enviada a todo el equipo.');
+    go('alertas');
+  },
   async 'f-link'(f) {
     const titulo = f.titulo.value.trim(), url = f.url.value.trim(), descripcion = f.descripcion.value.trim() || null, categoria = f.categoria.value;
     if (!titulo) return toast('Poné un nombre para el link.', true);
