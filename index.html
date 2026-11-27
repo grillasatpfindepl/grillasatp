@@ -485,7 +485,7 @@ async function boot() {
     if (!me.activo) return renderBloqueado();
     if (faltanDatos) return renderPerfil();
     await cargarBase();
-    go(seccionDelLink() || (esAdmin() ? 'solicitudes' : 'calendario'));
+    go(seccionDelLink() || (esAdmin() ? 'grillasAdmin' : 'grillas'));
     relinkearAvisos();
   } finally { booting = false; }
 }
@@ -494,7 +494,7 @@ function seccionDelLink() {
   const pedida = (location.hash || '').slice(1);
   if (!pedida) return null;
   history.replaceState(null, '', location.pathname);
-  const permitidas = esAdmin() ? ['solicitudes', 'personal', 'preguntas', 'registro', 'calendarioGeneral'] : ['calendario', 'pedidos', 'ayuda', 'links', 'grillas'];
+  const permitidas = esAdmin() ? ['solicitudes', 'personal', 'preguntas', 'registro', 'calendarioGeneral', 'grillasAdmin'] : ['calendario', 'pedidos', 'ayuda', 'links', 'grillas'];
   return permitidas.includes(pedida) ? pedida : null;
 }
 window.addEventListener('hashchange', () => {
@@ -862,7 +862,7 @@ function drawGrillas(lista, cat, admin) {
 }
 VIEWS.grillas = {
   async load() { S.w.grillas = await cargarGrillas(); },
-  draw() { return '<h1>Grillas</h1>' + drawGrillas(S.w.grillas, S.w.grillaCat, false); }
+  draw() { return '<h1>Grillas</h1>' + bannerInstalar() + drawGrillas(S.w.grillas, S.w.grillaCat, false); }
 };
 
 /* ---------- Links ---------- */
